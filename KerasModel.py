@@ -151,6 +151,9 @@ class KerasModel():
   def SetModelName(self, name):
     self.modelName = name
 
+  def GetModelName(self):
+    return self.modelName
+
   def SetModelVersion(self, version):
     self.modelVersion = version
 

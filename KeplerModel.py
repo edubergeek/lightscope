@@ -2,8 +2,6 @@
 # coding: utf-8
 # %%
 
-# %%
-
 
 import sys
 import os
@@ -21,6 +19,8 @@ from tensorflow.keras.layers import Dense, Flatten, Reshape, Dropout, Input, Con
 from tensorflow.keras.layers import Conv1D, Conv2D, MaxPooling1D, Conv3D
 
 from KerasModel import KerasModel, BestEpoch, PlotLoss
+
+PROGRESS_INTERVAL = 100
 
 def reshape_Pad(features, targets):
     for t in hyperParam[TRANSFORM]:
@@ -145,6 +145,40 @@ class KeplerModel(KerasModel):
     self.isTrained = True  
     self.bestEpoch = bestepoch.get_best_epoch()
     return self.bestEpoch
+
+  def Evaluate(self, ds, transform):
+    # Generate predictions
+    b=0
+    lid = []
+    lpred = []
+    ltrue = []
+    names = ["period"]
+
+    for features, target in ds:
+      if self.hparam['arch'] == 'AE':
+        _, yPred = self.model.predict(features, self.batchSize)
+      elif self.hparam['arch'] == 'NC':
+        yPred = self.model.predict(features, self.batchSize)
+      else:
+        yPred = self.model.predict(features, self.batchSize)[:,0]
+      yTrue = target.numpy()
+        
+      lpred.append(yPred)
+      ltrue.append(yTrue)
+      b+=1
+      if not b % PROGRESS_INTERVAL:
+        print(".", end="")#print(b, yId[0], yPred[:,0][0])#, features['x'][0][0:10])
+
+    print("done")
+    self.prediction = [item for sublist in lpred for item in sublist] 
+    self.prediction = np.asarray(self.prediction)
+    self.true = [item for sublist in ltrue for item in sublist] 
+    self.true = np.asarray(self.true)
+    #self.prediction[self.prediction < 0.0] = 0.0
+    #self.prediction[self.prediction > 1.0] = 1.0
+    #self.dft = pd.DataFrame(self.label, columns = ['id'])
+    #self.dft['prediction'] = self.prediction    
+    return self.prediction, self.true
 
   def SetMonitor(self, monitor):
     self.monitor = monitor
