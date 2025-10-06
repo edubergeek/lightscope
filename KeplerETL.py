@@ -202,9 +202,11 @@ class KeplerETL(ETL):
     
     # Merge the dataframes on the 'kepid' column
     # Use inner join to keep only matching Kepler IDs
-    merged_df = pd.merge(kepdf[['kepid', 'kepler_name', 'koi_period']], manidf[['kepid', 'kepobs', 'kepfits']], on='kepid', how='inner')
+    df = pd.merge(kepdf[['kepid', 'kepler_name', 'koi_period']], manidf[['kepid', 'kepobs', 'kepfits']], on='kepid', how='inner')
+    df.sort_values(by='kepfits', inplace=True)
+    df[['kepler_name']] = df[['kepler_name']].fillna('')
 
-    return merged_df
+    return df
 
   def Writer(self):
     if self.writer is None:
@@ -245,13 +247,13 @@ class KeplerETL(ETL):
     corr_flux = fitsdata['PDCSAP_FLUX']
     # Convert the time array to full BJD by adding the offset back in.
     obstime = times + bjdrefi + bjdreff
-    return obstime, uncorr_flux, corr_flux
+    return np.nan_to_num(obstime), np.nan_to_num(uncorr_flux), np.nan_to_num(corr_flux)
 
   def Chunkify(self, t, flux, chunklen):
     chunks = []
     series_len = len(t)
     nchunk = series_len // chunklen
-    print(f'Chunkify: {nchunk} chunks of len {chunklen}')
+    #print(f'Chunkify: {nchunk} chunks of len {chunklen}')
     offset = 0
     for c in range(nchunk):
       chunk = {'t': t[offset:offset+chunklen], 'flux': flux[offset:offset+chunklen]}
@@ -290,8 +292,14 @@ class KeplerETL(ETL):
     n = len(x)
     print(f'{n} TrainingExamples for {id}')
     for idx in range(n):
-      print(f'Serializing example {m} chunk {idx}')
-      feature = { 'x': _floatvector_feature(x[idx]['t']), 'y': _floatvector_feature(y[idx]['flux']), 'p': _float_feature(y[idx]['period']), 'id': _bytes_feature(id.encode('utf-8')), 'name': _bytes_feature(y[idx]['name'].encode('utf-8'))}
+      #print(f'Serializing example {m} chunk {idx}')
+      feature = { 
+          'x': _floatvector_feature(x[idx]['t']), 
+          'y': _floatvector_feature(y[idx]['flux']), 
+          'p': _float_feature(y[idx]['period']),
+          'id': _bytes_feature(id.encode('utf-8')), 
+          'name': _bytes_feature(y[idx]['name'].encode('utf-8'))
+      }
       #print(feature)
       # Create an example protocol buffer
       example.append(Example(features=Features(feature=feature)))
@@ -307,7 +315,7 @@ class KeplerETL(ETL):
       # Take an example if selected for the current mode
       #if mode == TrainingSet.TEST or self.mask[dataset][m] == (mode == TrainingSet.TRAIN):
       example, examples = self.TrainingExample(m) 
-      print(f'Saving training example {m} with {examples} chunks')
+      #print(f'Saving training example {m} with {examples} chunks')
       # write one (usually) or a set of correlated examples to the TFRecord file via the writer object
       for exidx in range(examples):
         #print(e)
@@ -317,7 +325,7 @@ class KeplerETL(ETL):
           if self.counter[cursor] > 0:
             self.writer[cursor].close()
             self.writer[cursor] = tf.io.TFRecordWriter(self.OutputPath(cursor, self.counter[cursor]))
-        print(f'Saving training example chunk {exidx}')
+        #print(f'Saving training example chunk {exidx}')
         #print(example[exidx])
         self.writer[cursor].write(example[exidx].SerializeToString())
         self.counter[cursor] += 1
